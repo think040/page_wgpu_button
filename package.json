@@ -1,0 +1,25 @@
+{
+  "name": "fornace-pizza",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "wgpu-matrix": "^3.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@webgpu/types": "^0.1.74",
+    "raw-loader": "^4.0.2",
+    "typescript": "^7.0.2"
+  }
+}

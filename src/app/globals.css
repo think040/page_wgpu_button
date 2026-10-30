@@ -1,0 +1,38 @@
+:root {
+  --bg: #110907;
+  --bg-2: #1c0e09;
+  --cream: #fff1dc;
+  --cream-dim: #d9bfa3;
+  --tomato: #d2381c;
+  --amber: #ffb23e;
+  --basil: #4f9a3e;
+  --line: rgba(255, 210, 160, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--cream);
+  font-family: var(--font-body), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.15;
+}
