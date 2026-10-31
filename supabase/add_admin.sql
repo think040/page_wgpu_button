@@ -2,4 +2,4 @@
 -- 아래 이메일을 그 계정으로 바꿔 SQL Editor에서 실행한다.
 
 insert into public.admin_users (user_id)
-select id from auth.users where email = 'think040@gmail.com';
+select id from auth.users where email = 'admin@example.com';

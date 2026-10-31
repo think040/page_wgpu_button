@@ -1,3 +1,4 @@
+import Link from "next/link";
 import CtaCanvas from "@/components/CtaCanvas";
 import Hero from "@/components/Hero";
 import SiteHeader from "@/components/SiteHeader";
@@ -112,6 +113,11 @@ export default async function Home() {
 
       <footer className={styles.footer}>
         <p>© {new Date().getFullYear()} Fornace Pizza. Wood-fired since 2019.</p>
+        <p>
+          <Link href="/admin" rel="nofollow" className={styles.adminLink}>
+            관리자
+          </Link>
+        </p>
       </footer>
     </>
   );

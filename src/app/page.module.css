@@ -192,6 +192,17 @@
   font-size: 0.9rem;
 }
 
+.adminLink {
+  color: var(--cream-dim);
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.adminLink:hover {
+  color: var(--amber);
+  opacity: 1;
+}
+
 @media (max-width: 860px) {
   .about,
   .visit {
