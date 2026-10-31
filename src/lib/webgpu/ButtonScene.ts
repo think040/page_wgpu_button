@@ -12,19 +12,24 @@ import { rayIntersectMesh, screenToRay } from "./picking";
 
 const SAMPLE_COUNT = 4;
 const SCENE_UNIFORM_SIZE = 176; // mat4 + vec4 * 3 + mat4
-const OBJECT_UNIFORM_SIZE = 176; // mat4 * 2 + vec4 * 3
+const OBJECT_UNIFORM_SIZE = 48; // vec4 * 3
 const BG: GPUColor = { r: 0.067, g: 0.035, b: 0.027, a: 1 };
 
 /** 버튼 크기 (절반 값) 와 모서리 반지름 */
 const BUTTON_HALF: [number, number, number] = [1.6, 0.5, 0.26];
 const BUTTON_RADIUS = 0.22;
 const BUTTON_Y = 0.85;
+/** 토핑보다 무거워서 살짝만 밀린다 */
+const BUTTON_INV_MASS = 0.6;
+const BUTTON_INV_INERTIA = 0.7;
 
 /** 토핑 큐브 */
 const TOPPING_COLORS = ["#f5c542", "#3f8f3a", "#e0452b", "#2b2320", "#e8d6b5"];
 const TOPPING_HALF = 0.2;
 const TOPPING_INV_MASS = 1;
 const TOPPING_INV_INERTIA = 6;
+/** 손가락은 마우스보다 부정확하고 세로 화면에서는 토핑이 작게 보이므로 터치 판정을 넓힌다 */
+const TOUCH_RAY_PADDING = 0.25;
 
 /** 그림자 */
 const SHADOW_MAP_SIZE = 2048;
@@ -194,15 +199,16 @@ export class ButtonScene {
 
   // ───────────────────────── 파이프라인 ─────────────────────────
 
-  /** bodies[0]은 버튼(고정 충돌체), 그 뒤로 토핑 큐브 */
+  /** bodies[0]은 버튼, 그 뒤로 토핑 큐브 */
   private createPhysics() {
     const bodies: BodyDesc[] = [
       {
         halfExtents: BUTTON_HALF,
         position: [0, BUTTON_Y, 0],
         rotation: quat.identity(),
-        invMass: 0,
-        invInertia: 0,
+        invMass: BUTTON_INV_MASS,
+        invInertia: BUTTON_INV_INERTIA,
+        followHome: true,
       },
       ...TOPPING_COLORS.map((_, i) => ({
         halfExtents: [TOPPING_HALF, TOPPING_HALF, TOPPING_HALF] as const,
@@ -382,16 +388,17 @@ export class ButtonScene {
     texture: GPUTexture,
     color: string,
     params: number[],
-    bodyIndex = -1,
+    bodyIndex: number,
   ): SceneObject {
     const uniform = this.device.createBuffer({
       size: OBJECT_UNIFORM_SIZE,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     const data = new Float32Array(OBJECT_UNIFORM_SIZE / 4);
-    data.set([...linear(color), 1], 32);
-    data.set(params, 36);
-    data[40] = bodyIndex;
+    data.set([...linear(color), 1], 0);
+    data.set(params, 4);
+    data[8] = bodyIndex;
+    data[9] = 1;
     this.device.queue.writeBuffer(uniform, 0, data);
     const bindGroup = this.device.createBindGroup({
       layout: this.objectLayout,
@@ -451,12 +458,13 @@ export class ButtonScene {
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
     });
 
-    this.button = this.createObject(this.uploadMesh(this.buttonMesh), labelTexture, "#d2381c", [
-      1,
+    this.button = this.createObject(
+      this.uploadMesh(this.buttonMesh),
+      labelTexture,
+      "#d2381c",
+      [1, 0, BUTTON_HALF[0], BUTTON_HALF[1]],
       0,
-      BUTTON_HALF[0],
-      BUTTON_HALF[1],
-    ]);
+    );
 
     // 버튼 주변을 떠다니는 토핑 큐브들 (치즈, 바질, 토마토, 올리브, 버섯)
     const cube = this.uploadMesh(createRoundedBox(TOPPING_HALF, TOPPING_HALF, TOPPING_HALF, 0.08, 5));
@@ -537,7 +545,15 @@ export class ButtonScene {
     }
   }
 
+  /** 강체 충돌용 광선 갱신 */
+  private aimPhysics(e: PointerEvent) {
+    const rect = this.canvas.getBoundingClientRect();
+    const ray = screenToRay(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height, this.viewProj);
+    this.physics.setRay(ray, e.pointerType === "mouse" ? 0 : TOUCH_RAY_PADDING);
+  }
+
   private onPointerDown = (e: PointerEvent) => {
+    this.aimPhysics(e);
     if (this.activating) return;
     if (!this.hitTest(e)) return;
     // 누른 순간 버튼 메시에 닿아야 "누르는 중" 상태가 된다
@@ -549,16 +565,15 @@ export class ButtonScene {
 
   private onPointerMove = (e: PointerEvent) => {
     const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    this.pointer.x = (x / rect.width) * 2 - 1;
-    this.pointer.y = (y / rect.height) * 2 - 1;
-    this.physics.setRay(screenToRay(x, y, rect.width, rect.height, this.viewProj));
+    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+    this.aimPhysics(e);
     if (this.activating) return;
     this.setHover(this.hitTest(e));
   };
 
   private onPointerUp = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") this.physics.releaseRay();
     if (!this.pressing || e.pointerId !== this.pressPointerId) return;
     this.pressing = false;
     if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
@@ -574,6 +589,7 @@ export class ButtonScene {
   };
 
   private onPointerCancel = () => {
+    this.physics.releaseRay();
     this.pressing = false;
     this.setHover(false);
   };
@@ -581,7 +597,7 @@ export class ButtonScene {
   private onPointerLeave = () => {
     this.pointer.x = 0;
     this.pointer.y = 0;
-    this.physics.setRay(null);
+    this.physics.releaseRay();
     if (!this.pressing) this.setHover(false);
   };
 
@@ -648,9 +664,11 @@ export class ButtonScene {
     const s = 1 - this.press.x * 0.05;
     mat4.scale(m, [s, s, s], m);
     this.buttonModel = m;
-    this.writeObject(this.button, m, this.glow.x);
+    this.button.data[5] = this.glow.x;
+    this.button.data[9] = s;
+    this.device.queue.writeBuffer(this.button.uniform, 0, this.button.data);
 
-    // 강체가 돌아갈 자세: 버튼은 현재 자세 그대로, 토핑은 궤도 위치
+    // 강체가 돌아갈 자세: 버튼은 눌림/흔들림이 반영된 자세, 토핑은 궤도 위치
     const buttonRotation = quat.mul(
       quat.fromAxisAngle([0, 1, 0], this.parallaxX.x * 0.22 + Math.sin(t * 0.7) * 0.05),
       quat.fromAxisAngle([1, 0, 0], this.tilt.x + wobble + this.parallaxY.x * 0.12),
@@ -660,13 +678,6 @@ export class ButtonScene {
       const { position, rotation } = toppingHome(i, t);
       this.physics.setHome(i + 1, position, rotation, dt);
     });
-  }
-
-  private writeObject(obj: SceneObject, model: Mat4, glow: number) {
-    obj.data.set(model, 0);
-    obj.data.set(mat4.transpose(mat4.inverse(model)), 16);
-    obj.data[37] = glow;
-    this.device.queue.writeBuffer(obj.uniform, 0, obj.data);
   }
 
   private writeScene(buffer: GPUBuffer, viewProj: Mat4, eye: number[], clip: number) {

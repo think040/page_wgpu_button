@@ -3,15 +3,16 @@
 //   pass2 box_box   : OBB-OBB 충돌(SAT) → 충격량 + 위치 보정
 //   pass3 integrate : 충격량 + 복원 스프링 적분 → position/rotation
 // 각 호출은 자기 인덱스의 impulses[i]/bodies[i]만 쓰므로 병렬 실행에 경합이 없다.
-// bodies[0]은 버튼(고정 충돌체)이다.
+// bodies[0]은 버튼이다. 눌림/흔들림 자세를 Home으로 따라가고, 충돌로 생긴 오프셋에만 스프링이 걸린다.
 
 struct Params {
-  // xyz: 광선 원점, w: 이번 프레임에 마우스가 움직였으면 1
+  // xyz: 광선 원점, w: 1이면 이번 프레임에 검사, -1이면 포인터가 떠나 닿음 상태 초기화
   rayOrigin : vec4f,
   rayDir : vec4f,
   prevRayDir : vec4f,
   dt : f32,
   count : u32,
+  rayPadding : f32, // 터치용 판정 여유 (월드 단위)
 };
 
 // 돌아갈 자세. 궤도를 따라 움직이므로 CPU가 매 프레임 갱신한다.
@@ -37,8 +38,8 @@ struct Impulse {
 @group(0) @binding(3) var<storage, read_write> impulses : array<Impulse>;
 
 // 마우스 밀기
-const RAY_PUSH : f32 = 1.6; // 광선 방향으로 미는 속도
-const RAY_DRAG : f32 = 0.6; // 마우스 이동 속도가 전달되는 비율
+const RAY_PUSH : f32 = 1.6; // 광선 방향 충격량
+const RAY_DRAG : f32 = 0.6; // 마우스 이동 속도가 충격량으로 전달되는 비율
 const RAY_MAX_SPEED : f32 = 6.0;
 // 충돌
 const RESTITUTION : f32 = 0.7;
@@ -55,13 +56,14 @@ const FLOOR_BOUNCE : f32 = 0.5;
 // ───────────────────────── pass1: ray-box ─────────────────────────
 
 // 슬랩 방식 광선-OBB 교차. 광선을 박스 로컬 공간으로 옮겨 검사한다. 빗나가면 음수.
-fn ray_obb(origin : vec3f, dir : vec3f, b : Body) -> f32 {
+fn ray_obb(origin : vec3f, dir : vec3f, b : Body, padding : f32) -> f32 {
   let inv = quat_conj(b.quat);
   let o = quat_rotate(inv, origin - b.pos.xyz);
   var d = quat_rotate(inv, dir);
   d = select(d, vec3f(1e-6), abs(d) < vec3f(1e-6));
-  let t1 = (-b.half_size.xyz - o) / d;
-  let t2 = (b.half_size.xyz - o) / d;
+  let half_size = b.half_size.xyz + padding;
+  let t1 = (-half_size - o) / d;
+  let t2 = (half_size - o) / d;
   let near = min(t1, t2);
   let far = max(t1, t2);
   let tMin = max(max(near.x, near.y), near.z);
@@ -80,15 +82,18 @@ fn ray_box(@builtin(global_invocation_id) id : vec3u) {
   }
 
   var wasHit = impulses[i].flags.x;
+  if (params.rayOrigin.w < -0.5) {
+    wasHit = 0.0;
+  }
   var result : Impulse;
   let b = bodies[i];
 
-  if (params.rayOrigin.w > 0.5 && b.pos.w > 0.0) {
+  if (params.rayOrigin.w > 0.5) {
     let origin = params.rayOrigin.xyz;
     let dir = params.rayDir.xyz;
-    let t = ray_obb(origin, dir, b);
+    let t = ray_obb(origin, dir, b, params.rayPadding);
     // 버튼 뒤에 가려진 박스는 건드리지 않는다
-    let blocker = ray_obb(origin, dir, bodies[0]);
+    let blocker = select(ray_obb(origin, dir, bodies[0], 0.0), -1.0, i == 0u);
     let isHit = t >= 0.0 && (blocker < 0.0 || t < blocker);
 
     if (isHit && wasHit < 0.5) {
@@ -100,8 +105,8 @@ fn ray_box(@builtin(global_invocation_id) id : vec3u) {
       }
       let kick = dir * RAY_PUSH + drag * RAY_DRAG;
       let r = origin + dir * t - b.pos.xyz;
-      result.linear = vec4f(kick, 0.0);
-      result.angular = vec4f(cross(r, kick / b.pos.w) * b.linVel.w, 0.0);
+      result.linear = vec4f(kick * b.pos.w, 0.0);
+      result.angular = vec4f(cross(r, kick) * b.linVel.w, 0.0);
     }
     wasHit = select(0.0, 1.0, isHit);
   }
@@ -185,9 +190,6 @@ fn box_box(@builtin(global_invocation_id) id : vec3u) {
     return;
   }
   let a = bodies[i];
-  if (a.pos.w == 0.0) {
-    return;
-  }
 
   // 이번 스텝 시작 상태만 읽으므로 양쪽 박스가 같은 값으로 대칭인 충격량을 얻는다
   var linear = vec3f(0.0);
@@ -241,20 +243,16 @@ fn integrate(@builtin(global_invocation_id) id : vec3u) {
   let home = homes[i];
   var b = bodies[i];
 
-  if (b.pos.w == 0.0) {
-    b.pos = vec4f(home.pos.xyz, 0.0);
-    b.quat = home.quat;
-    bodies[i] = b;
-    return;
-  }
-
   let dt = params.dt;
   let impulse = impulses[i];
+  // 버튼은 Home의 움직임을 그대로 더하고, 나머지 박스는 Home 속도를 감쇠 기준으로만 쓴다
+  let follow = b.angVel.w;
 
   // 선운동: 자기 궤도 위치로 돌아가는 스프링 (반암시적 오일러)
   var vel = b.linVel.xyz + impulse.linear.xyz;
-  vel += (LINEAR_STIFFNESS * (home.pos.xyz - b.pos.xyz) - LINEAR_DAMPING * (vel - home.vel.xyz)) * dt;
-  var pos = b.pos.xyz + vel * dt + impulse.correction.xyz;
+  vel += (LINEAR_STIFFNESS * (home.pos.xyz - b.pos.xyz)
+        - LINEAR_DAMPING * (vel - home.vel.xyz * (1.0 - follow))) * dt;
+  var pos = b.pos.xyz + (vel + home.vel.xyz * follow) * dt + impulse.correction.xyz;
 
   let offset = pos - home.pos.xyz;
   let dist = length(offset);
@@ -266,8 +264,9 @@ fn integrate(@builtin(global_invocation_id) id : vec3u) {
   var err = quat_mul(home.quat, quat_conj(b.quat));
   err = select(err, -err, err.w < 0.0);
   var angVel = b.angVel.xyz + impulse.angular.xyz;
-  angVel += (ANGULAR_STIFFNESS * 2.0 * err.xyz - ANGULAR_DAMPING * (angVel - home.angVel.xyz)) * dt;
-  let quat = quat_integrate(b.quat, angVel, dt);
+  angVel += (ANGULAR_STIFFNESS * 2.0 * err.xyz
+           - ANGULAR_DAMPING * (angVel - home.angVel.xyz * (1.0 - follow))) * dt;
+  let quat = quat_integrate(b.quat, angVel + home.angVel.xyz * follow, dt);
 
   // 바닥(y=0) 아래로 내려가지 않도록 튕긴다
   let bottom = projected_radius(quat_to_mat3(quat), b.half_size.xyz, vec3f(0.0, 1.0, 0.0));
@@ -279,6 +278,6 @@ fn integrate(@builtin(global_invocation_id) id : vec3u) {
   b.pos = vec4f(pos, b.pos.w);
   b.quat = quat;
   b.linVel = vec4f(vel, b.linVel.w);
-  b.angVel = vec4f(angVel, 0.0);
+  b.angVel = vec4f(angVel, follow);
   bodies[i] = b;
 }

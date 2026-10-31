@@ -34,9 +34,10 @@ export interface BodyDesc {
   halfExtents: readonly [number, number, number];
   position: Vec3 | number[];
   rotation: Quat | number[];
-  /** 0이면 물리에 밀리지 않는 고정 충돌체 */
   invMass: number;
   invInertia: number;
+  /** Home의 움직임을 그대로 따라가고 충돌 오프셋에만 스프링을 건다 (애니메이션이 있는 버튼용) */
+  followHome?: boolean;
 }
 
 /** 강체 시뮬레이션. pass1~3을 컴퓨트 셰이더로 돌리고 결과를 CPU로 복사한다. */
@@ -61,6 +62,9 @@ export class PhysicsSim {
 
   private ray: Ray | null = null;
   private rayMoved = false;
+  private rayReleased = false;
+  private rayPadding = 0;
+  private clearRayHits = false;
   private prevRayDir: Vec3 | null = null;
 
   constructor(
@@ -78,6 +82,7 @@ export class PhysicsSim {
       initial[base + 3] = body.invMass;
       initial.set(body.rotation, base + 4);
       initial[base + 11] = body.invInertia;
+      initial[base + 15] = body.followHome ? 1 : 0;
       initial.set(body.halfExtents, base + 16);
       this.homeData.set(body.position, i * HOME_FLOATS);
       this.homeData.set(body.rotation, i * HOME_FLOATS + 4);
@@ -162,11 +167,20 @@ export class PhysicsSim {
     this.homeData.set(rotation, base + 4);
   }
 
-  /** 마우스 광선 갱신. 포인터가 캔버스를 벗어나면 null. */
-  setRay(ray: Ray | null) {
+  /** 포인터 광선 갱신. padding은 박스 판정을 넓히는 값(월드 단위). */
+  setRay(ray: Ray, padding = 0) {
     this.ray = ray;
-    this.rayMoved = ray !== null;
-    if (!ray) this.prevRayDir = null;
+    this.rayMoved = true;
+    this.rayReleased = false;
+    this.rayPadding = padding;
+  }
+
+  /**
+   * 포인터가 떠남. 다음 스텝까지는 광선을 유지해 짧은 탭도 검사되게 하고,
+   * 그 뒤 닿음 상태를 지워 같은 박스를 다시 눌러도 반응하게 한다.
+   */
+  releaseRay() {
+    this.rayReleased = true;
   }
 
   /** pass1~3 실행 후 결과를 readback 버퍼로 복사 */
@@ -224,11 +238,19 @@ export class PhysicsSim {
       floats.set(this.prevRayDir ?? ray.dir, 8);
       this.prevRayDir = ray.dir;
     } else {
-      floats[3] = 0;
+      floats[3] = this.clearRayHits ? -1 : 0;
+      this.clearRayHits = false;
     }
     this.rayMoved = false;
+    if (this.rayReleased && ray) {
+      this.ray = null;
+      this.prevRayDir = null;
+      this.clearRayHits = true;
+    }
+    this.rayReleased = false;
     floats[12] = dt;
     new Uint32Array(this.paramsData)[13] = this.count;
+    floats[14] = this.rayPadding;
     this.device.queue.writeBuffer(this.paramsBuffer, 0, this.paramsData);
   }
 
