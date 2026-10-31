@@ -1,24 +1,7 @@
 // 둥근 모서리 3D 버튼 + 장식 오브젝트 셰이더
 // 메인 패스와 반사(거울) 패스에서 같이 사용한다.
+// 앞에 quaternion.wgsl, body.wgsl, object.wgsl, scene.wgsl을 이어 붙여 컴파일한다.
 
-struct Scene {
-  viewProj : mat4x4f,
-  cameraPos : vec4f,
-  lightDir : vec4f,
-  // x: time, y: clip(반사 패스에서 1), z: width, w: height
-  params : vec4f,
-};
-
-struct Object {
-  model : mat4x4f,
-  normalMat : mat4x4f,
-  color : vec4f,
-  // x: 라벨 사용 여부, y: 발광(hover/press), z: 절반 너비, w: 절반 높이
-  params : vec4f,
-};
-
-@group(0) @binding(0) var<uniform> scene : Scene;
-@group(1) @binding(0) var<uniform> obj : Object;
 @group(1) @binding(1) var labelTex : texture_2d<f32>;
 @group(1) @binding(2) var labelSampler : sampler;
 
@@ -33,10 +16,10 @@ struct VSOut {
 @vertex
 fn vs_main(@location(0) position : vec3f, @location(1) normal : vec3f) -> VSOut {
   var out : VSOut;
-  let world = obj.model * vec4f(position, 1.0);
-  out.position = scene.viewProj * world;
-  out.worldPos = world.xyz;
-  out.worldNormal = normalize((obj.normalMat * vec4f(normal, 0.0)).xyz);
+  let world = object_world_pos(position);
+  out.position = scene.viewProj * vec4f(world, 1.0);
+  out.worldPos = world;
+  out.worldNormal = object_world_normal(normal);
   out.localPos = position;
   out.localNormal = normal;
   return out;
@@ -73,8 +56,10 @@ fn fs_main(in : VSOut) -> @location(0) vec4f {
   // 라벨 텍스처는 sRGB → 선형 공간으로 변환 후 합성
   albedo = mix(albedo, pow(label.rgb, vec3f(2.2)), label.a * onFace);
 
-  let diff = max(dot(n, l), 0.0);
-  let spec = pow(max(dot(n, h), 0.0), 96.0) * 0.9;
+  // 법선 방향으로 살짝 띄워 자기 그림자 줄무늬(acne)를 막는다
+  let shadow = shadow_factor(in.worldPos + n * 0.02);
+  let diff = max(dot(n, l), 0.0) * shadow;
+  let spec = pow(max(dot(n, h), 0.0), 96.0) * 0.9 * shadow;
   // 보조 림 라이트 (뒤쪽 파란빛)
   let rim = pow(1.0 - max(dot(n, v), 0.0), 3.0);
   let fill = max(dot(n, normalize(vec3f(-0.6, 0.3, 0.7))), 0.0) * 0.25;

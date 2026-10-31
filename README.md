@@ -17,11 +17,15 @@ npm run build && npm start
 |---|---|
 | `src/components/Hero.tsx` | CSS 애니메이션 히어로 (회전 피자, 조각 당기기/치즈, 불씨, 공전 토핑, 글자 애니메이션) |
 | `src/components/CtaCanvas.tsx` | 하단 WebGPU 캔버스 CTA (지원 여부 체크, 대체 UI) |
-| `src/lib/webgpu/ButtonScene.ts` | 렌더러: 반사 패스 → 메인 패스(MSAA 4x), 애니메이션, 입력 처리 |
+| `src/lib/webgpu/ButtonScene.ts` | 렌더러: 강체 컴퓨트 → 그림자 패스 → 반사 패스 → 메인 패스(MSAA 4x), 애니메이션, 입력 처리 |
+| `src/lib/webgpu/PhysicsSim.ts` | 토핑 강체 시뮬레이션 실행, 결과를 CPU로 반환 (`PHYSICS_DEBUG`로 콘솔 출력 on/off) |
 | `src/lib/webgpu/geometry.ts` | 둥근 모서리 박스 메시 생성 (안쪽 박스 + 구면 투영, 매끄러운 법선) |
 | `src/lib/webgpu/picking.ts` | 화면 → 월드 광선, AABB 사전 판정 + Möller–Trumbore 광선-삼각형 교차 |
 | `src/shaders/button.wgsl` | 버튼/토핑 셰이딩 (라벨 텍스처, 림라이트, ACES 톤매핑) |
-| `src/shaders/floor.wgsl` | 반사 바닥 (평면 반사 텍스처 + 가우시안 블러 + 프레넬 + 타일) |
+| `src/shaders/floor.wgsl` | 반사 바닥 (평면 반사 텍스처 + 가우시안 블러 + 프레넬 + 타일 + 그림자) |
+| `src/shaders/physics.wgsl` | 컴퓨트 3패스: ray-box → OBB-OBB(SAT) → 강체 적분 |
+| `src/shaders/shadow.wgsl` | 광원 시점 깊이 패스 (깊이 텍스처는 `scene.wgsl`의 3x3 PCF로 샘플링) |
+| `src/shaders/quaternion.wgsl` | 쿼터니언 함수 (렌더/컴퓨트 공용) |
 | `src/app/contact` | 문의 페이지 + 폼 |
 | `src/app/api/contact/route.ts` | 문의 API (검증, 허니팟, IP별 요청 제한, `.data/inquiries.jsonl` 저장) |
 

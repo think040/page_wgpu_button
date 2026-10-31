@@ -1,14 +1,7 @@
 // 반사 바닥 셰이더
 // 반사 텍스처(거울 카메라로 렌더링한 장면)를 화면 좌표로 샘플링한다.
+// 앞에 scene.wgsl을 이어 붙여 컴파일한다.
 
-struct Scene {
-  viewProj : mat4x4f,
-  cameraPos : vec4f,
-  lightDir : vec4f,
-  params : vec4f,
-};
-
-@group(0) @binding(0) var<uniform> scene : Scene;
 @group(1) @binding(0) var reflectionTex : texture_2d<f32>;
 @group(1) @binding(1) var reflectionSampler : sampler;
 
@@ -78,6 +71,9 @@ fn fs_main(in : VSOut) -> @location(0) vec4f {
   // 버튼 아래 따뜻한 빛 웅덩이
   let pool = exp(-dot(in.worldPos.xz - vec2f(0.0, 0.2), in.worldPos.xz - vec2f(0.0, 0.2)) * 0.45);
   color += vec3f(0.35, 0.12, 0.04) * pool;
+
+  // 버튼/토핑이 드리우는 실시간 그림자
+  color *= mix(0.3, 1.0, shadow_factor(in.worldPos));
 
   // 멀어질수록 배경색으로 페이드
   let fade = smoothstep(4.0, 14.0, dist);
