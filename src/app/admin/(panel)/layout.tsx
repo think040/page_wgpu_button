@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getAdmin } from "@/lib/supabase/admin";
 import { signOut } from "../actions";
 import styles from "../admin.module.css";
+import SubmitButton from "../SubmitButton";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const admin = await getAdmin();
@@ -25,7 +26,9 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </nav>
         <form action={signOut} className={styles.account}>
           <span>{admin.email}</span>
-          <button className={styles.ghost}>로그아웃</button>
+          <SubmitButton className={styles.ghost} pendingLabel="로그아웃 중...">
+            로그아웃
+          </SubmitButton>
         </form>
       </header>
       <main className={styles.content}>{children}</main>

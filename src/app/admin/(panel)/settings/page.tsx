@@ -2,6 +2,7 @@ import { saveSettings } from "@/app/admin/actions";
 import type { SiteSettings } from "@/lib/site";
 import { requireAdmin } from "@/lib/supabase/admin";
 import styles from "../../admin.module.css";
+import SubmitButton from "../../SubmitButton";
 import Notice from "../Notice";
 
 export default async function SettingsPage({
@@ -36,7 +37,7 @@ export default async function SettingsPage({
             전화
             <input name="phone" maxLength={30} required defaultValue={settings.phone} />
           </label>
-          <button className={styles.primary}>저장</button>
+          <SubmitButton>저장</SubmitButton>
         </form>
       )}
     </>

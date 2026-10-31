@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/server";
 
-/** /admin 요청마다 Supabase 세션을 갱신하고, 비로그인 사용자를 로그인 화면으로 보낸다 */
+/** /admin 요청마다 만료된 세션을 갱신하고, 비로그인 사용자를 로그인 화면으로 보낸다. 관리자 판정은 getAdmin이 한다. */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   let loggedIn = false;
@@ -18,10 +18,8 @@ export async function proxy(request: NextRequest) {
         },
       },
     });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    loggedIn = !!user;
+    const { data } = await supabase.auth.getClaims();
+    loggedIn = !!data;
   } catch (err) {
     console.error("[admin] 세션 확인 실패", err);
   }

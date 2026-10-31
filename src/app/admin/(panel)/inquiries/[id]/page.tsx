@@ -5,6 +5,7 @@ import { INQUIRY_TYPES } from "@/lib/contact";
 import { formatDateTime, INQUIRY_STATUSES, type Inquiry } from "@/lib/inquiry";
 import { requireAdmin } from "@/lib/supabase/admin";
 import styles from "../../../admin.module.css";
+import SubmitButton from "../../../SubmitButton";
 import ConfirmButton from "../../ConfirmButton";
 import Notice from "../../Notice";
 
@@ -83,7 +84,7 @@ export default async function InquiryDetailPage({
           관리자 메모
           <textarea name="memo" rows={4} maxLength={2000} defaultValue={inquiry.memo} />
         </label>
-        <button className={styles.primary}>저장</button>
+        <SubmitButton>저장</SubmitButton>
       </form>
 
       <form action={deleteInquiry} className={styles.dangerZone}>

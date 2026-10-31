@@ -2,6 +2,7 @@ import { deleteMenuItem, saveMenuItem } from "@/app/admin/actions";
 import type { MenuItem } from "@/lib/site";
 import { requireAdmin } from "@/lib/supabase/admin";
 import styles from "../../admin.module.css";
+import SubmitButton from "../../SubmitButton";
 import ConfirmButton from "../ConfirmButton";
 import Notice from "../Notice";
 
@@ -73,7 +74,7 @@ export default async function MenuPage({
         <section key={item.id} className={styles.card}>
           <form action={saveMenuItem} className={styles.form}>
             <MenuFields item={item} nextOrder={nextOrder} />
-            <button className={styles.primary}>저장</button>
+            <SubmitButton>저장</SubmitButton>
           </form>
           <form action={deleteMenuItem}>
             <input type="hidden" name="id" value={item.id} />
@@ -86,7 +87,7 @@ export default async function MenuPage({
       <section className={styles.card}>
         <form action={saveMenuItem} className={styles.form}>
           <MenuFields nextOrder={nextOrder} />
-          <button className={styles.primary}>추가</button>
+          <SubmitButton pendingLabel="추가 중...">추가</SubmitButton>
         </form>
       </section>
     </>

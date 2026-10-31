@@ -63,6 +63,10 @@
   color: var(--cream-dim);
 }
 
+.loading {
+  color: var(--cream-dim);
+}
+
 .back {
   display: inline-block;
   margin-bottom: 10px;
@@ -138,6 +142,13 @@
   font-weight: 700;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.primary:disabled,
+.ghost:disabled,
+.danger:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 .primary {

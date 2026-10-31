@@ -6,16 +6,15 @@ import { createSessionClient } from "./server";
 export const getAdmin = cache(async () => {
   try {
     const supabase = await createSessionClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return null;
+    const { data: auth } = await supabase.auth.getClaims();
+    if (!auth) return null;
+    // 이 조회가 실제 권한 판정이다. 토큰은 Supabase가 다시 검증하고 RLS가 본인 행만 돌려준다.
     const { data } = await supabase
       .from("admin_users")
       .select("user_id")
-      .eq("user_id", user.id)
+      .eq("user_id", auth.claims.sub)
       .maybeSingle();
-    return data ? user : null;
+    return data ? { id: auth.claims.sub, email: auth.claims.email } : null;
   } catch {
     return null;
   }

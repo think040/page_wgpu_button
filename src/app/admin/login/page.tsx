@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAdmin } from "@/lib/supabase/admin";
 import { signIn } from "../actions";
 import styles from "../admin.module.css";
+import SubmitButton from "../SubmitButton";
 
 const ERRORS: Record<string, string> = {
   invalid: "이메일 또는 비밀번호가 올바르지 않습니다.",
@@ -33,7 +34,7 @@ export default async function LoginPage({
           비밀번호
           <input name="password" type="password" autoComplete="current-password" required />
         </label>
-        <button className={styles.primary}>로그인</button>
+        <SubmitButton pendingLabel="로그인 중...">로그인</SubmitButton>
       </form>
     </main>
   );
