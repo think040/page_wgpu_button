@@ -27,7 +27,11 @@ npm run build && npm start
 | `src/shaders/shadow.wgsl` | 광원 시점 깊이 패스 (깊이 텍스처는 `scene.wgsl`의 3x3 PCF로 샘플링) |
 | `src/shaders/quaternion.wgsl` | 쿼터니언 함수 (렌더/컴퓨트 공용) |
 | `src/app/contact` | 문의 페이지 + 폼 |
-| `src/app/api/contact/route.ts` | 문의 API (검증, 허니팟, IP별 요청 제한, `.data/inquiries.jsonl` 저장) |
+| `src/app/api/contact/route.ts` | 문의 API (검증, 허니팟, IP별 요청 제한, Supabase 저장) |
+| `src/app/admin` | 관리자 페이지 (로그인, 대시보드, 문의, 메뉴, 매장 정보) |
+| `src/proxy.ts` | `/admin` 세션 갱신, 비로그인 차단 |
+| `src/lib/site.ts` | 홈페이지 메뉴/매장 정보 읽기 (실패하면 기본값) |
+| `supabase/` | DB 스키마와 관리자 등록 SQL |
 
 ### 셰이더 import
 `.wgsl` 파일은 `next.config.ts`에서 Turbopack(`raw-loader`)과 webpack(`asset/source`) 모두 문자열로 로드하도록 설정되어 있고,
@@ -38,6 +42,18 @@ npm run build && npm start
 2. `pointerup` 위치에서도 메시와 교차해야 활성화 (밖에서 떼면 취소)
 3. 위아래로 흔들리는 회전 애니메이션(0.75초) 후 `/contact`로 이동
 
+### 관리자 페이지 설정
+Supabase는 Vercel Marketplace로 연결되어 있고, 환경 변수는 Preview/Production에 등록되어 있습니다.
+
+1. Supabase SQL Editor에서 `supabase/migrations/0001_admin.sql` 실행
+2. Authentication > Users에서 관리자 계정 생성
+3. `supabase/add_admin.sql`의 이메일을 바꿔 실행
+4. `/admin`에서 로그인
+
+`admin_users`에 등록된 계정만 들어올 수 있습니다. 공개 가입은 Authentication 설정에서 끄는 것을 권장합니다.
+
+로컬에서 Supabase까지 쓰려면 `.env.local`에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`를 넣으세요.
+없으면 홈페이지는 기본 내용으로 표시되고 문의 저장과 관리자 로그인은 동작하지 않습니다.
+
 ### 문의 저장소
-기본은 로컬 파일(`.data/inquiries.jsonl`)입니다. Vercel 같은 서버리스 환경은 파일 시스템이 유지되지 않으므로
-`route.ts`의 TODO 위치에서 DB 저장이나 메일(Resend, Nodemailer)/Slack 알림으로 바꿔 쓰세요.
+문의는 Supabase `inquiries` 테이블에 저장합니다. 메일이나 Slack 알림은 `route.ts`의 TODO 위치에 붙이면 됩니다.

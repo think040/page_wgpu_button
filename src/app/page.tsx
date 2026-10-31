@@ -1,14 +1,11 @@
 import CtaCanvas from "@/components/CtaCanvas";
 import Hero from "@/components/Hero";
 import SiteHeader from "@/components/SiteHeader";
+import { getSiteContent } from "@/lib/site";
 import styles from "./page.module.css";
 
-const MENU = [
-  { name: "마르게리타 D.O.P", desc: "산 마르차노 토마토, 물소 모짜렐라, 바질", price: "17,000", emoji: "🍅", tag: "BEST" },
-  { name: "디아볼라", desc: "매콤한 살라미, 칼라브리아 고추, 꿀 한 방울", price: "21,000", emoji: "🌶️", tag: "HOT" },
-  { name: "콰트로 포르마지", desc: "고르곤졸라 · 폰티나 · 파르미지아노 · 모짜렐라", price: "23,000", emoji: "🧀" },
-  { name: "타르투포", desc: "트러플 크림, 양송이, 루꼴라", price: "26,000", emoji: "🍄", tag: "NEW" },
-];
+// 관리자에서 저장하면 revalidatePath로 바로 갱신된다. 이 값은 재생성 주기의 상한.
+export const revalidate = 3600;
 
 const STATS = [
   { value: "485°C", label: "화덕 온도" },
@@ -17,7 +14,9 @@ const STATS = [
   { value: "12", label: "매일 굽는 반죽 종류" },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const { menu, settings } = await getSiteContent();
+
   return (
     <>
       <SiteHeader />
@@ -64,13 +63,13 @@ export default function Home() {
           <p className={styles.eyebrow}>SIGNATURE MENU</p>
           <h2 className={styles.h2}>오늘의 시그니처</h2>
           <div className={styles.menuGrid}>
-            {MENU.map((m) => (
-              <article key={m.name} className={styles.card}>
+            {menu.map((m) => (
+              <article key={m.id} className={styles.card}>
                 {m.tag && <span className={styles.tag}>{m.tag}</span>}
                 <div className={styles.cardEmoji}>{m.emoji}</div>
                 <h3>{m.name}</h3>
-                <p>{m.desc}</p>
-                <strong>₩ {m.price}</strong>
+                <p>{m.description}</p>
+                <strong>₩ {m.price.toLocaleString("ko-KR")}</strong>
               </article>
             ))}
           </div>
@@ -85,15 +84,15 @@ export default function Home() {
             <dl className={styles.info}>
               <div>
                 <dt>주소</dt>
-                <dd>서울시 마포구 화덕로 485, 1층</dd>
+                <dd>{settings.address}</dd>
               </div>
               <div>
                 <dt>영업시간</dt>
-                <dd>11:30 – 22:00 (브레이크 15:00 – 17:00)</dd>
+                <dd>{settings.hours}</dd>
               </div>
               <div>
                 <dt>전화</dt>
-                <dd>02-485-0090</dd>
+                <dd>{settings.phone}</dd>
               </div>
             </dl>
           </div>

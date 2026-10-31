@@ -1,13 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 import { INQUIRY_TYPES, validateContact } from "@/lib/contact";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-
-const DATA_DIR = path.join(process.cwd(), ".data");
-const DATA_FILE = path.join(DATA_DIR, "inquiries.jsonl");
 
 // 간단한 IP별 요청 제한 (1분에 5회). 서버리스/다중 인스턴스 환경이라면 Redis 등으로 교체하세요.
 const WINDOW_MS = 60_000;
@@ -52,20 +48,18 @@ export async function POST(req: NextRequest) {
 
   const record = {
     id,
-    createdAt: new Date().toISOString(),
     name: data.name,
     email: data.email,
     phone: data.phone || null,
     type: data.type,
-    typeLabel: INQUIRY_TYPES[data.type],
-    date: data.date || null,
+    preferred_date: data.date || null,
     people: data.people ? Number(data.people) : null,
     message: data.message,
   };
 
   try {
-    await mkdir(DATA_DIR, { recursive: true });
-    await appendFile(DATA_FILE, JSON.stringify(record) + "\n", "utf8");
+    const { error } = await createServiceClient().from("inquiries").insert(record);
+    if (error) throw error;
   } catch (err) {
     console.error("[contact] 저장 실패", err);
     return NextResponse.json(
@@ -75,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   // TODO: 메일/슬랙 알림을 붙이려면 여기서 전송 (예: Resend, Nodemailer, Slack Webhook)
-  console.info(`[contact] 새 문의 접수 #${id} (${record.typeLabel}) ${record.name}`);
+  console.info(`[contact] 새 문의 접수 #${id} (${INQUIRY_TYPES[data.type]}) ${record.name}`);
 
   return NextResponse.json({ ok: true, id }, { status: 201 });
 }
